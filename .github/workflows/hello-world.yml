@@ -1,0 +1,112 @@
+name: Hello World Python
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Generate matrix
+      id: set-matrix
+      run: |
+        MATRIX=$(python generate_matrix.py)
+        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+        echo "Generated matrix: $MATRIX"
+
+  hello-world:
+    needs: generate-matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Display Python version
+      run: python --version
+
+    - name: Run Hello World script
+      run: python hello.py
+
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: result-${{ matrix.os }}-${{ matrix.python-version }}
+        path: result.json
+        retention-days: 30
+
+  aggregate-and-publish:
+    needs: hello-world
+    runs-on: ubuntu-latest
+    if: always()  # Run even if some matrix jobs fail
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Checkout GitHub Pages repository
+      uses: actions/checkout@v4
+      with:
+        repository: ggbecker/workflow-testing-pages
+        ref: main
+        path: gh-pages-content
+        token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN }}
+
+    - name: Aggregate results and generate HTML
+      run: |
+        python aggregate_results.py
+      env:
+        ARTIFACTS_DIR: artifacts
+        OUTPUT_DIR: output
+        HISTORICAL_DIR: gh-pages-content
+
+    - name: Display generated files
+      run: |
+        echo "Generated files:"
+        ls -la output/
+
+    - name: Publish to GitHub Pages repository
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        # IMPORTANT: Create a Personal Access Token with 'repo' scope
+        # and add it as a secret named GH_PAGES_DEPLOY_TOKEN
+        personal_token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN }}
+        # IMPORTANT: Replace with your GitHub Pages repository
+        # Format: username/repository-name
+        external_repository: ggbecker/workflow-testing-pages
+        publish_branch: main  # or gh-pages, depending on your setup
+        publish_dir: ./output
+        user_name: 'github-actions[bot]'
+        user_email: 'github-actions[bot]@users.noreply.github.com'
+        commit_message: 'Update test results from workflow run #${{ github.run_number }}'
