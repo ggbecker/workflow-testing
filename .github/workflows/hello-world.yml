@@ -90,11 +90,20 @@ jobs:
         ARTIFACTS_DIR: artifacts
         OUTPUT_DIR: output
         HISTORICAL_DIR: gh-pages-content
+        PAGES_URL: https://ggbecker.github.io/workflow-testing-pages
 
     - name: Display generated files
       run: |
         echo "Generated files:"
         ls -la output/
+
+    - name: Post summary to GitHub Actions
+      run: |
+        cat output/summary.md >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📄 **Full Report**: https://ggbecker.github.io/workflow-testing-pages" >> $GITHUB_STEP_SUMMARY
 
     - name: Publish to GitHub Pages repository
       uses: peaceiris/actions-gh-pages@v4
@@ -107,6 +116,8 @@ jobs:
         external_repository: ggbecker/workflow-testing-pages
         publish_branch: main  # or gh-pages, depending on your setup
         publish_dir: ./output
+        # Only update index.html and runs/ directory, preserve other files
+        keep_files: true
         user_name: 'github-actions[bot]'
         user_email: 'github-actions[bot]@users.noreply.github.com'
         commit_message: 'Update test results from workflow run #${{ github.run_number }}'

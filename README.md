@@ -20,7 +20,20 @@ The workflow consists of 3 jobs:
 
 1. **generate-matrix** - Runs the Python script to generate the test matrix
 2. **hello-world** - Executes tests across all matrix combinations and uploads results
-3. **aggregate-and-publish** - Collects all results, generates HTML, and publishes to GitHub Pages
+3. **aggregate-and-publish** - Collects all results, generates HTML, publishes to GitHub Pages, and posts direct URLs to the workflow summary
+
+### GitHub Actions Summary
+
+After each workflow run, a detailed summary is automatically posted to the GitHub Actions summary page, including:
+- Run information (run number, timestamp, environments tested)
+- Direct links to the latest run
+- Individual links to each environment result
+- A summary table of all tested environments
+
+To view the summary:
+1. Go to the Actions tab in your repository
+2. Click on a workflow run
+3. The summary appears at the top with all direct links
 
 ## Setup Instructions
 
@@ -46,13 +59,18 @@ The workflow is already configured for repository `ggbecker/workflow-testing-pag
 
 In `.github/workflows/hello-world.yml`:
 - Line 81: Update the `repository` field in the checkout step
-- Line 98: Update the `external_repository` field in the publish step
+- Line 93: Update the `PAGES_URL` environment variable
+- Line 106: Update the full report URL
+- Line 107: Update the `external_repository` field in the publish step
 
+Example changes:
 ```yaml
 repository: YOUR_USERNAME/YOUR_PAGES_REPO
+PAGES_URL: https://YOUR_USERNAME.github.io/YOUR_PAGES_REPO
+external_repository: YOUR_USERNAME/YOUR_PAGES_REPO
 ```
 
-Also verify the `publish_branch` (line 82 and 99):
+Also verify the `publish_branch` (line 82 and 108):
 - Use `main` if your GitHub Pages repository uses the main branch
 - Use `gh-pages` if it uses a gh-pages branch
 
@@ -93,7 +111,9 @@ The workflow automatically maintains a historical record of test results:
 3. Filters out runs older than 2 weeks
 4. Adds the new run results
 5. Regenerates the HTML report with all retained runs
-6. Publishes everything back to GitHub Pages
+6. Publishes only `index.html` and `runs/` directory back to GitHub Pages
+   - **Note**: The workflow uses `keep_files: true` to preserve any other files in your GitHub Pages repository
+   - Only `index.html` and files in `runs/` directory are created/updated
 
 ### Customizing Retention Period
 
@@ -113,6 +133,29 @@ After the workflow runs successfully:
    - Expandable sections for each workflow run
    - All test environments with platform details
    - Latest run marked with a badge
+
+### Sharing Direct Links
+
+Each test run and environment result has a unique URL for easy sharing:
+
+**Method 1: From GitHub Actions Summary**
+1. Go to the Actions tab and click on a workflow run
+2. The summary at the top contains direct links to all results
+3. Click any link to jump directly to that specific result
+
+**Method 2: From the HTML Report**
+1. Click the "🔗 Link" button next to any run number to copy its URL
+2. Click the "🔗" button on any environment card to copy its URL
+3. The URL is automatically copied to your clipboard
+
+**URL Examples:**
+- Full run: `https://YOUR_USERNAME.github.io/#run-0`
+- Specific environment: `https://YOUR_USERNAME.github.io/#env-0-1`
+
+When someone visits these URLs:
+- The page automatically scrolls to the linked result
+- The relevant section automatically expands if collapsed
+- The target element is highlighted briefly for easy identification
 
 ## Local Testing
 
@@ -166,6 +209,12 @@ Each JSON file in the `runs/` directory contains:
 - **Dynamic Matrix Generation**: Customize test environments based on any logic (date, environment variables, etc.)
 - **Historical Tracking**: View results from all runs in the last 2 weeks
 - **Interactive HTML**: Collapsible sections for each run with detailed environment information
+- **Direct URLs**: Each run and environment result has a unique URL that can be copied and shared
+  - Click the "🔗 Link" button on any run to copy its direct URL
+  - Click the "🔗" button on any environment card to copy its direct URL
+  - URLs automatically expand the relevant section when accessed
+- **GitHub Actions Integration**: Automatic summary posted to each workflow run with direct links to all results
 - **Automatic Cleanup**: Old results are automatically removed to prevent repository bloat
 - **Cross-Platform Testing**: Test across Linux, Windows, and macOS with multiple Python versions
+- **Safe Publishing**: Only modifies `index.html` and `runs/` directory, preserving all other files in your GitHub Pages repository
 - **Zero Maintenance**: Once set up, the workflow handles everything automatically

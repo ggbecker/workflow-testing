@@ -194,6 +194,78 @@ def generate_html(all_runs):
             font-size: 0.8em;
             font-weight: 600;
         }
+        .link-button {
+            display: inline-block;
+            padding: 4px 8px;
+            margin-left: 8px;
+            background: #0366d6;
+            color: white;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.75em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .link-button:hover {
+            background: #0256c7;
+        }
+        .link-button:active {
+            background: #024ea5;
+        }
+        .copy-notification {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        .copy-notification.show {
+            display: block;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .run-section:target {
+            animation: highlight 2s ease-out;
+        }
+        @keyframes highlight {
+            0% {
+                background: #fff3cd;
+            }
+            100% {
+                background: white;
+            }
+        }
+        .result-card:target {
+            animation: highlight-card 2s ease-out;
+            border-left-color: #0366d6;
+        }
+        @keyframes highlight-card {
+            0% {
+                background: #fff3cd;
+            }
+            100% {
+                background: #f6f8fa;
+            }
+        }
+        .env-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
     </style>
     <script>
         function toggleRun(runId) {
@@ -207,9 +279,91 @@ def generate_html(all_runs):
                 icon.textContent = '▶';
             }
         }
+
+        function copyLink(anchor) {
+            const url = window.location.origin + window.location.pathname + '#' + anchor;
+
+            // Copy to clipboard
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showNotification('Link copied to clipboard!');
+                }).catch(err => {
+                    // Fallback method
+                    fallbackCopy(url);
+                });
+            } else {
+                // Fallback for older browsers
+                fallbackCopy(url);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showNotification('Link copied to clipboard!');
+            } catch (err) {
+                showNotification('Failed to copy link');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function showNotification(message) {
+            const notification = document.getElementById('copy-notification');
+            notification.textContent = message;
+            notification.classList.add('show');
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+
+        // On page load, expand the section if there's a hash
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.location.hash) {
+                const hash = window.location.hash.substring(1);
+
+                // Check if it's an environment result
+                if (hash.startsWith('env-')) {
+                    const parts = hash.split('-');
+                    if (parts.length >= 2) {
+                        const runId = parts[1];
+                        const content = document.getElementById('run-' + runId);
+                        const icon = document.getElementById('icon-' + runId);
+                        if (content && content.classList.contains('collapsed')) {
+                            content.classList.remove('collapsed');
+                            if (icon) icon.textContent = '▼';
+                        }
+                    }
+                }
+                // Check if it's a run section
+                else if (hash.startsWith('run-')) {
+                    const runId = hash.replace('run-', '');
+                    const content = document.getElementById('run-' + runId);
+                    const icon = document.getElementById('icon-' + runId);
+                    if (content && content.classList.contains('collapsed')) {
+                        content.classList.remove('collapsed');
+                        if (icon) icon.textContent = '▼';
+                    }
+                }
+
+                // Scroll to the element
+                setTimeout(() => {
+                    const element = document.getElementById(hash);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 100);
+            }
+        });
     </script>
 </head>
 <body>
+    <div id="copy-notification" class="copy-notification"></div>
     <h1>GitHub Actions Test Results - Historical View</h1>
 """
 
@@ -239,6 +393,7 @@ def generate_html(all_runs):
     for idx, run in enumerate(all_runs):
         run_timestamp = run.get("timestamp", "Unknown")
         run_number = run.get("run_number", "N/A")
+        run_id = run.get("run_id", "N/A")
         results = run.get("results", [])
         is_latest = idx == 0
 
@@ -248,13 +403,17 @@ def generate_html(all_runs):
             formatted_time = run_timestamp
 
         badge_html = '<span class="badge">LATEST</span> ' if is_latest else ''
+        anchor_id = f"run-{idx}"
 
         html += f"""
-    <div class="run-section">
+    <div class="run-section" id="{anchor_id}">
         <div class="run-header" onclick="toggleRun({idx})">
             <div>
-                <h2>{badge_html}Run #{run_number}</h2>
-                <div class="run-meta">{formatted_time} - {len(results)} environments tested</div>
+                <h2>
+                    {badge_html}Run #{run_number}
+                    <button class="link-button" onclick="event.stopPropagation(); copyLink('{anchor_id}');" title="Copy link to this run">🔗 Link</button>
+                </h2>
+                <div class="run-meta">{formatted_time} - {len(results)} environments tested - Run ID: {run_id}</div>
             </div>
             <span class="toggle-icon" id="icon-{idx}">▼</span>
         </div>
@@ -266,10 +425,14 @@ def generate_html(all_runs):
         for env_idx, result in enumerate(results, 1):
             python_info = result.get('python_version_info', {})
             python_ver = f"{python_info.get('major', '?')}.{python_info.get('minor', '?')}.{python_info.get('micro', '?')}"
+            env_anchor_id = f"env-{idx}-{env_idx}"
 
             html += f"""
-                <div class="result-card">
-                    <h3>{result.get('system', 'Unknown')} - Python {python_ver}</h3>
+                <div class="result-card" id="{env_anchor_id}">
+                    <div class="env-header">
+                        <h3>{result.get('system', 'Unknown')} - Python {python_ver}</h3>
+                        <button class="link-button" onclick="copyLink('{env_anchor_id}');" title="Copy link to this environment">🔗</button>
+                    </div>
                     <div class="result-item">
                         <span class="result-label">Platform:</span>
                         <span class="result-value">{result.get('platform', 'N/A')}</span>
@@ -300,6 +463,74 @@ def generate_html(all_runs):
 """
 
     return html
+
+
+def generate_github_summary(current_run, base_url):
+    """Generate markdown summary for GitHub Actions step summary."""
+    run_number = current_run.get("run_number", "N/A")
+    run_id = current_run.get("run_id", "N/A")
+    timestamp = current_run.get("timestamp", "Unknown")
+    results = current_run.get("results", [])
+
+    try:
+        formatted_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).strftime('%Y-%m-%d %H:%M:%S UTC')
+    except:
+        formatted_time = timestamp
+
+    # Start building the markdown
+    markdown = f"""# 🎯 Test Results Summary
+
+## Run Information
+- **Run Number**: #{run_number}
+- **Run ID**: {run_id}
+- **Timestamp**: {formatted_time}
+- **Environments Tested**: {len(results)}
+
+## 🔗 Direct Links
+
+### Latest Run
+- [View Latest Run]({base_url}#run-0) - Direct link to this test run
+
+### Individual Environment Results
+
+"""
+
+    # Add links for each environment
+    for idx, result in enumerate(results, 1):
+        python_info = result.get('python_version_info', {})
+        python_ver = f"{python_info.get('major', '?')}.{python_info.get('minor', '?')}.{python_info.get('micro', '?')}"
+        system = result.get('system', 'Unknown')
+        platform_name = result.get('platform', 'N/A')
+
+        env_anchor = f"env-0-{idx}"
+        markdown += f"- [{system} - Python {python_ver}]({base_url}#{env_anchor})\n"
+        markdown += f"  - Platform: `{platform_name}`\n"
+        markdown += f"  - Architecture: `{result.get('architecture', 'N/A')}`\n\n"
+
+    markdown += f"""
+## 📊 Results Overview
+
+| Environment | Python Version | Platform | Status |
+|------------|----------------|----------|--------|
+"""
+
+    for result in results:
+        python_info = result.get('python_version_info', {})
+        python_ver = f"{python_info.get('major', '?')}.{python_info.get('minor', '?')}.{python_info.get('micro', '?')}"
+        system = result.get('system', 'Unknown')
+        platform_name = result.get('platform', 'N/A')
+
+        markdown += f"| {system} | {python_ver} | {platform_name} | ✅ |\n"
+
+    markdown += f"""
+---
+
+💡 **Tip**: Click any link above to view detailed results for that specific environment.
+
+📅 **Retention**: Results are kept for 2 weeks and then automatically cleaned up.
+"""
+
+    return markdown
 
 
 def main():
@@ -370,6 +601,15 @@ def main():
     with open(html_output, "w") as f:
         f.write(html_content)
     print(f"Generated HTML report at {html_output}")
+
+    # Generate GitHub Actions summary
+    print("\nGenerating GitHub Actions summary...")
+    base_url = os.getenv("PAGES_URL", "https://ggbecker.github.io/workflow-testing-pages")
+    github_summary = generate_github_summary(current_run, base_url)
+    summary_output = Path(output_dir) / "summary.md"
+    with open(summary_output, "w") as f:
+        f.write(github_summary)
+    print(f"Generated GitHub Actions summary at {summary_output}")
 
     # Summary
     print("\n" + "="*50)
