@@ -1,0 +1,193 @@
+name: Comprehensive Tests (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      description:
+        description: 'Optional description for this test run'
+        required: false
+        default: 'Manual comprehensive test run'
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Generate comprehensive matrix
+      id: set-matrix
+      run: |
+        MATRIX=$(python generate_matrix.py)
+        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+        echo "Generated comprehensive matrix: $MATRIX"
+      env:
+        IS_PULL_REQUEST: 'false'
+        IS_COMPREHENSIVE: 'true'
+
+  hello-world:
+    needs: generate-matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Display Python version
+      run: python --version
+
+    - name: Run Hello World script
+      run: python hello.py
+
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: result-${{ matrix.os }}-${{ matrix.python-version }}
+        path: |
+          result.json
+          result.html
+        retention-days: 30
+
+  aggregate-and-publish:
+    needs: hello-world
+    runs-on: ubuntu-latest
+    if: always()  # Run even if some matrix jobs fail
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Checkout GitHub Pages repository
+      uses: actions/checkout@v4
+      with:
+        repository: ggbecker/workflow-testing-pages
+        ref: main
+        path: gh-pages-content
+        token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN }}
+
+    - name: Copy existing content to output directory
+      run: |
+        # Create output directory
+        mkdir -p output
+
+        # Copy all existing content from gh-pages-content to output
+        # This preserves everything by default
+        if [ -d "gh-pages-content" ]; then
+          # Copy everything except .git folder (explicitly include hidden files)
+          rsync -av --exclude='.git' gh-pages-content/ output/
+          echo "Copied existing content to output directory"
+          echo "Existing structure:"
+          ls -la output/
+          echo ""
+          echo "Checking if .github was copied:"
+          if [ -d "gh-pages-content/.github" ]; then
+            echo "✓ Source has .github folder"
+            if [ -d "output/.github" ]; then
+              echo "✓ .github folder was copied to output"
+            else
+              echo "✗ .github folder was NOT copied to output"
+            fi
+          else
+            echo "Source does not have .github folder"
+          fi
+        else
+          echo "No existing content found"
+        fi
+
+    - name: Aggregate results and generate HTML
+      run: |
+        python aggregate_results.py
+      env:
+        ARTIFACTS_DIR: artifacts
+        OUTPUT_DIR: output
+        HISTORICAL_DIR: gh-pages-content
+        PAGES_URL: https://ggbecker.github.io/workflow-testing-pages
+        IS_PULL_REQUEST: 'false'
+        IS_COMPREHENSIVE: 'true'
+        TEST_DESCRIPTION: ${{ github.event.inputs.description }}
+
+    - name: Display generated files
+      run: |
+        echo "Generated/updated files in output:"
+        ls -la output/
+        echo ""
+        echo "Checking for .github folder in output:"
+        if [ -d "output/.github" ]; then
+          echo "✓ .github folder exists in output"
+          ls -la output/.github/
+          if [ -d "output/.github/workflows" ]; then
+            echo "✓ .github/workflows folder exists"
+            ls -la output/.github/workflows/
+          else
+            echo "✗ .github/workflows folder NOT found in output"
+          fi
+        else
+          echo "✗ .github folder NOT found in output"
+        fi
+
+    - name: Post summary to GitHub Actions
+      run: |
+        cat output/summary.md >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📊 **[View Dashboard](https://ggbecker.github.io/workflow-testing-pages)** | **[View All Comprehensive Tests](https://ggbecker.github.io/workflow-testing-pages/comprehensive-tests/)**" >> $GITHUB_STEP_SUMMARY
+
+    - name: Copy output files back to gh-pages-content
+      run: |
+        echo "Copying output files back to gh-pages-content..."
+        # Copy everything from output back to gh-pages-content (excluding .git)
+        rsync -av --exclude='.git' output/ gh-pages-content/
+        echo "Files copied back to gh-pages-content"
+
+        echo "Final content structure:"
+        ls -la gh-pages-content/
+
+    - name: Commit and push changes to workflow-testing-pages
+      working-directory: gh-pages-content
+      run: |
+        # Configure git
+        git config user.name 'github-actions[bot]'
+        git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+        # Add all changes
+        git add .
+
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          # Create commit message
+          COMMIT_MSG="Update comprehensive test results from workflow run #${{ github.run_number }}"
+
+          # Commit and push
+          git commit -m "$COMMIT_MSG"
+          git push
+          echo "Changes pushed to workflow-testing-pages"
+        fi
