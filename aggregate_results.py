@@ -709,7 +709,7 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
     return html
 
 
-def generate_github_summary(current_run, base_url, safe_timestamp):
+def generate_github_summary(current_run, base_url, safe_timestamp, test_folder="full-tests"):
     """Generate markdown summary for GitHub Actions step summary."""
     run_number = current_run.get("run_number", "N/A")
     run_id = current_run.get("run_id", "N/A")
@@ -722,7 +722,7 @@ def generate_github_summary(current_run, base_url, safe_timestamp):
         formatted_time = timestamp
 
     # Build URL to this specific run
-    run_url = f"{base_url}/full-tests/{safe_timestamp}/"
+    run_url = f"{base_url}/{test_folder}/{safe_timestamp}/"
 
     # Start building the markdown
     markdown = f"""# 🎯 Test Results Summary
@@ -858,6 +858,9 @@ def generate_main_index_html(base_url):
         .pr-tests-card {{
             border-left: 4px solid #6f42c1;
         }}
+        .comprehensive-tests-card {{
+            border-left: 4px solid #28a745;
+        }}
         footer {{
             text-align: center;
             margin-top: 60px;
@@ -896,6 +899,19 @@ def generate_main_index_html(base_url):
                 <strong>Purpose:</strong> Quick validation
             </div>
         </a>
+
+        <a href="{base_url}/comprehensive-tests/" class="card comprehensive-tests-card">
+            <div class="card-icon">🔬</div>
+            <div class="card-title">Comprehensive Tests (Manual)</div>
+            <div class="card-description">
+                Extensive manual test results across all platforms and Python versions. Includes older OS versions for maximum compatibility testing.
+            </div>
+            <div class="card-meta">
+                <strong>Coverage:</strong> Ubuntu (latest & 20.04), Windows (latest & 2019), macOS (latest & 12)<br>
+                <strong>Python:</strong> 3.8, 3.9, 3.10, 3.11, 3.12<br>
+                <strong>Trigger:</strong> Manual only
+            </div>
+        </a>
     </div>
 
     <footer>
@@ -909,7 +925,7 @@ def generate_main_index_html(base_url):
 
 
 def generate_listing_page_html(runs, test_type, base_url):
-    """Generate listing page for full-tests or pr-tests."""
+    """Generate listing page for full-tests, pr-tests, or comprehensive-tests."""
     type_config = {
         "full": {
             "title": "Full Test Results",
@@ -922,6 +938,12 @@ def generate_listing_page_html(runs, test_type, base_url):
             "icon": "⚡",
             "description": "Fast test results from pull requests",
             "color": "#6f42c1"
+        },
+        "comprehensive": {
+            "title": "Comprehensive Tests (Manual)",
+            "icon": "🔬",
+            "description": "Extensive manual test results across all platforms and versions",
+            "color": "#28a745"
         }
     }
 
@@ -1085,7 +1107,9 @@ def main():
     output_dir = os.getenv("OUTPUT_DIR", "output")
     historical_dir = os.getenv("HISTORICAL_DIR", "")
     is_pull_request = os.getenv("IS_PULL_REQUEST", "false") == "true"
+    is_comprehensive = os.getenv("IS_COMPREHENSIVE", "false") == "true"
     pr_number = os.getenv("PR_NUMBER", "unknown")
+    test_description = os.getenv("TEST_DESCRIPTION", "")
     base_url = os.getenv("PAGES_URL", "https://ggbecker.github.io/workflow-testing-pages")
 
     # Create output directory
@@ -1195,10 +1219,21 @@ def main():
 
         return
 
-    # PUSH MODE - Full comprehensive tests
-    print("=" * 60)
-    print("PUSH MODE - Generating comprehensive results")
-    print("=" * 60)
+    # Determine test type and folder
+    if is_comprehensive:
+        test_type = "comprehensive"
+        test_folder = "comprehensive-tests"
+        test_title = "Comprehensive Tests (Manual)"
+        print("=" * 60)
+        print("COMPREHENSIVE MODE - Generating extensive test results")
+        print("=" * 60)
+    else:
+        test_type = "full"
+        test_folder = "full-tests"
+        test_title = "Full Test Results"
+        print("=" * 60)
+        print("PUSH MODE - Generating comprehensive results")
+        print("=" * 60)
 
     # Collect current run results
     print("\nCollecting current run results...")
@@ -1209,14 +1244,14 @@ def main():
 
     print(f"Found {len(current_results)} results for current run")
 
-    # Create full-tests directory structure: full-tests/TIMESTAMP/
-    full_base_dir = Path(output_dir) / "full-tests"
-    full_base_dir.mkdir(parents=True, exist_ok=True)
+    # Create test directory structure: {test_folder}/TIMESTAMP/
+    test_base_dir = Path(output_dir) / test_folder
+    test_base_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load existing full test runs from output directory
-    print(f"\nLoading existing full test runs from {full_base_dir}...")
-    all_runs = load_runs_from_output(full_base_dir)
-    print(f"Found {len(all_runs)} existing full test runs")
+    # Load existing test runs from output directory
+    print(f"\nLoading existing {test_title.lower()} from {test_base_dir}...")
+    all_runs = load_runs_from_output(test_base_dir)
+    print(f"Found {len(all_runs)} existing {test_title.lower()}")
 
     # Filter old runs and delete their folders
     print("\nFiltering old runs (keeping last 2 weeks)...")
@@ -1254,12 +1289,12 @@ def main():
     }
 
     # Create new run folder and generate HTML
-    full_run_dir = full_base_dir / safe_timestamp
-    full_run_dir.mkdir(parents=True, exist_ok=True)
+    test_run_dir = test_base_dir / safe_timestamp
+    test_run_dir.mkdir(parents=True, exist_ok=True)
 
     print("\nGenerating run results HTML...")
     run_html = generate_html([current_run])  # Pass as list with single run
-    run_html_output = full_run_dir / "index.html"
+    run_html_output = test_run_dir / "index.html"
     with open(run_html_output, "w", encoding="utf-8") as f:
         f.write(run_html)
     print(f"Generated run results at {run_html_output}")
@@ -1268,13 +1303,13 @@ def main():
     all_runs.insert(0, current_run)
     print(f"\nTotal runs to include: {len(all_runs)}")
 
-    # Generate full tests listing page
-    print("\nGenerating full tests listing page...")
-    full_listing_html = generate_listing_page_html(all_runs, "full", base_url)
-    full_listing_output = full_base_dir / "index.html"
-    with open(full_listing_output, "w", encoding="utf-8") as f:
-        f.write(full_listing_html)
-    print(f"Generated full tests listing at {full_listing_output}")
+    # Generate tests listing page
+    print(f"\nGenerating {test_title.lower()} listing page...")
+    test_listing_html = generate_listing_page_html(all_runs, test_type, base_url)
+    test_listing_output = test_base_dir / "index.html"
+    with open(test_listing_output, "w", encoding="utf-8") as f:
+        f.write(test_listing_html)
+    print(f"Generated {test_title.lower()} listing at {test_listing_output}")
 
     # Generate main index
     print("\nGenerating main index...")
@@ -1286,7 +1321,7 @@ def main():
 
     # Generate GitHub Actions summary
     print("\nGenerating GitHub Actions summary...")
-    github_summary = generate_github_summary(current_run, base_url, safe_timestamp)
+    github_summary = generate_github_summary(current_run, base_url, safe_timestamp, test_folder)
     summary_output = Path(output_dir) / "summary.md"
     with open(summary_output, "w", encoding="utf-8") as f:
         f.write(github_summary)
@@ -1294,13 +1329,15 @@ def main():
 
     # Summary
     print("\n" + "=" * 60)
-    print("PUSH RESULTS SUMMARY")
+    print(f"{test_title.upper()} SUMMARY")
     print("=" * 60)
     print(f"Total runs: {len(all_runs)}")
     print(f"Total environments in current run: {len(current_results)}")
     print(f"Run results: {run_html_output}")
-    print(f"Listing page: {full_listing_output}")
+    print(f"Listing page: {test_listing_output}")
     print(f"Main index: {main_index_path}")
+    if test_description:
+        print(f"Description: {test_description}")
     print("=" * 60)
 
 

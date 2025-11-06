@@ -22,22 +22,40 @@ def generate_matrix():
     # Detect if running on a pull request
     is_pull_request = os.getenv("IS_PULL_REQUEST", "false") == "true"
 
-    if is_pull_request:
+    # Detect if running comprehensive tests (manual trigger)
+    is_comprehensive = os.getenv("IS_COMPREHENSIVE", "false") == "true"
+
+    if is_comprehensive:
+        # Comprehensive: Run extensive tests with all combinations
+        # Test across all platforms, including older versions, and all Python versions
+        matrix = {
+            "os": [
+                "ubuntu-latest",
+                "ubuntu-20.04",
+                "windows-latest",
+                "windows-2019",
+                "macos-latest",
+                "macos-12"
+            ],
+            "python-version": ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        }
+        print(f"Generating comprehensive matrix (extensive tests - {len(matrix['os']) * len(matrix['python-version'])} combinations)", file=sys.stderr)
+    elif is_pull_request:
         # Pull Request: Run fast, minimal tests
         # Only test on Ubuntu with latest Python versions
         matrix = {
             "os": ["ubuntu-latest"],
             "python-version": ["3.11", "3.12"]
         }
-        print(f"Generating PR matrix (fast tests)", file=sys.stderr)
+        print(f"Generating PR matrix (fast tests - {len(matrix['os']) * len(matrix['python-version'])} combinations)", file=sys.stderr)
     else:
-        # Push to main: Run comprehensive tests
+        # Push to main: Run standard comprehensive tests
         # Test across all platforms and Python versions
         matrix = {
             "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
             "python-version": ["3.9", "3.10", "3.11", "3.12"]
         }
-        print(f"Generating push matrix (comprehensive tests)", file=sys.stderr)
+        print(f"Generating push matrix (standard tests - {len(matrix['os']) * len(matrix['python-version'])} combinations)", file=sys.stderr)
 
     # Alternative: Use day-based logic as fallback
     # current_day = datetime.now().weekday()
