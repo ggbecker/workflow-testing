@@ -660,7 +660,7 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
     return html
 
 
-def generate_github_summary(current_run, base_url):
+def generate_github_summary(current_run, base_url, safe_timestamp):
     """Generate markdown summary for GitHub Actions step summary."""
     run_number = current_run.get("run_number", "N/A")
     run_id = current_run.get("run_id", "N/A")
@@ -671,6 +671,9 @@ def generate_github_summary(current_run, base_url):
         formatted_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).strftime('%Y-%m-%d %H:%M:%S UTC')
     except:
         formatted_time = timestamp
+
+    # Build URL to this specific run
+    run_url = f"{base_url}/full-tests/{safe_timestamp}/"
 
     # Start building the markdown
     markdown = f"""# 🎯 Test Results Summary
@@ -684,7 +687,7 @@ def generate_github_summary(current_run, base_url):
 ## 🔗 Direct Links
 
 ### Latest Run
-- [View Latest Run]({base_url}#run-0) - Direct link to this test run
+- [View This Run's Results]({run_url}) - Direct link to this test run
 
 ### Individual Environment Results
 
@@ -698,7 +701,7 @@ def generate_github_summary(current_run, base_url):
         platform_name = result.get('platform', 'N/A')
 
         env_anchor = f"env-0-{idx}"
-        markdown += f"- [{system} - Python {python_ver}]({base_url}#{env_anchor})\n"
+        markdown += f"- [{system} - Python {python_ver}]({run_url}#{env_anchor})\n"
         markdown += f"  - Platform: `{platform_name}`\n"
         markdown += f"  - Architecture: `{result.get('architecture', 'N/A')}`\n\n"
 
@@ -728,6 +731,305 @@ def generate_github_summary(current_run, base_url):
     return markdown
 
 
+def generate_main_index_html(base_url):
+    """Generate main landing page index.html."""
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Results - Workflow Testing</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #f5f5f5;
+        }}
+        h1 {{
+            color: #24292e;
+            border-bottom: 3px solid #0366d6;
+            padding-bottom: 15px;
+            text-align: center;
+        }}
+        .intro {{
+            text-align: center;
+            color: #586069;
+            margin-bottom: 40px;
+        }}
+        .cards-container {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }}
+        .card {{
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }}
+        .card:hover {{
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }}
+        .card-icon {{
+            font-size: 3em;
+            margin-bottom: 15px;
+        }}
+        .card-title {{
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #24292e;
+            margin-bottom: 10px;
+        }}
+        .card-description {{
+            color: #586069;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }}
+        .card-meta {{
+            font-size: 0.9em;
+            color: #6a737d;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e4e8;
+        }}
+        .card-meta strong {{
+            color: #24292e;
+        }}
+        .full-tests-card {{
+            border-left: 4px solid #0366d6;
+        }}
+        .pr-tests-card {{
+            border-left: 4px solid #6f42c1;
+        }}
+        footer {{
+            text-align: center;
+            margin-top: 60px;
+            color: #6a737d;
+            font-size: 0.9em;
+        }}
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Results Dashboard</h1>
+    <p class="intro">View comprehensive test results from GitHub Actions workflows</p>
+
+    <div class="cards-container">
+        <a href="{base_url}/full-tests/" class="card full-tests-card">
+            <div class="card-icon">📊</div>
+            <div class="card-title">Full Test Results</div>
+            <div class="card-description">
+                Comprehensive test results from pushes to main branch. Includes all platforms and Python versions with historical tracking.
+            </div>
+            <div class="card-meta">
+                <strong>Coverage:</strong> Linux, Windows, macOS<br>
+                <strong>Python:</strong> 3.9, 3.10, 3.11, 3.12<br>
+                <strong>Retention:</strong> 2 weeks
+            </div>
+        </a>
+
+        <a href="{base_url}/pr-tests/" class="card pr-tests-card">
+            <div class="card-icon">⚡</div>
+            <div class="card-title">PR Test Results</div>
+            <div class="card-description">
+                Fast test results from pull requests. Minimal subset of tests for quick feedback during code review.
+            </div>
+            <div class="card-meta">
+                <strong>Coverage:</strong> Ubuntu Latest<br>
+                <strong>Python:</strong> 3.11, 3.12<br>
+                <strong>Purpose:</strong> Quick validation
+            </div>
+        </a>
+    </div>
+
+    <footer>
+        <p>🤖 Generated by GitHub Actions Workflow</p>
+        <p>Results are automatically updated with each workflow run</p>
+    </footer>
+</body>
+</html>
+"""
+    return html
+
+
+def generate_listing_page_html(runs, test_type, base_url):
+    """Generate listing page for full-tests or pr-tests."""
+    type_config = {
+        "full": {
+            "title": "Full Test Results",
+            "icon": "📊",
+            "description": "Comprehensive test results from pushes to main",
+            "color": "#0366d6"
+        },
+        "pr": {
+            "title": "Pull Request Test Results",
+            "icon": "⚡",
+            "description": "Fast test results from pull requests",
+            "color": "#6f42c1"
+        }
+    }
+
+    config = type_config.get(test_type, type_config["full"])
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{config['title']}</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        h1 {{
+            color: #24292e;
+            border-bottom: 3px solid {config['color']};
+            padding-bottom: 10px;
+        }}
+        .icon {{
+            font-size: 1.5em;
+        }}
+        .description {{
+            color: #586069;
+            margin-bottom: 30px;
+        }}
+        .back-link {{
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #0366d6;
+            text-decoration: none;
+        }}
+        .back-link:hover {{
+            text-decoration: underline;
+        }}
+        table {{
+            width: 100%;
+            background: white;
+            border-collapse: collapse;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }}
+        thead {{
+            background: #f6f8fa;
+            border-bottom: 2px solid #e1e4e8;
+        }}
+        th {{
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #24292e;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }}
+        td {{
+            padding: 12px;
+            border-bottom: 1px solid #e1e4e8;
+            color: #24292e;
+        }}
+        tr:last-child td {{
+            border-bottom: none;
+        }}
+        tr:hover {{
+            background-color: #f6f8fa;
+        }}
+        .badge {{
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }}
+        .badge-latest {{
+            background: #28a745;
+            color: white;
+        }}
+        .view-link {{
+            color: #0366d6;
+            text-decoration: none;
+            font-weight: 600;
+        }}
+        .view-link:hover {{
+            text-decoration: underline;
+        }}
+        footer {{
+            margin-top: 40px;
+            text-align: center;
+            color: #6a737d;
+            font-size: 0.9em;
+        }}
+    </style>
+</head>
+<body>
+    <a href="{base_url}" class="back-link">← Back to Dashboard</a>
+
+    <h1><span class="icon">{config['icon']}</span> {config['title']}</h1>
+    <p class="description">{config['description']}</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Run</th>
+                <th>Timestamp</th>
+                <th>Run Number</th>
+                <th>Environments</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+
+    for idx, run in enumerate(runs):
+        timestamp = run.get("timestamp", "Unknown")
+        run_number = run.get("run_number", "N/A")
+        run_id = run.get("run_id", "N/A")
+        num_envs = len(run.get("results", []))
+
+        # Create safe timestamp for URL
+        safe_timestamp = timestamp.replace(":", "-").replace(".", "-").split("+")[0]
+
+        try:
+            formatted_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).strftime('%Y-%m-%d %H:%M:%S UTC')
+        except:
+            formatted_time = timestamp
+
+        badge_html = '<span class="badge badge-latest">LATEST</span>' if idx == 0 else ''
+
+        html += f"""
+            <tr>
+                <td>{badge_html} #{run_number}</td>
+                <td>{formatted_time}</td>
+                <td>Run ID: {run_id}</td>
+                <td>{num_envs} environments</td>
+                <td><a href="./{safe_timestamp}/" class="view-link">View Results →</a></td>
+            </tr>
+"""
+
+    html += """
+        </tbody>
+    </table>
+
+    <footer>
+        <p>Results are kept for 2 weeks and automatically cleaned up</p>
+    </footer>
+</body>
+</html>
+"""
+
+    return html
+
+
 def main():
     """Main function to aggregate results and generate HTML."""
     artifacts_dir = os.getenv("ARTIFACTS_DIR", "artifacts")
@@ -740,7 +1042,11 @@ def main():
     # Create output directory
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    # Handle Pull Request differently from Push
+    # Generate current run timestamp
+    current_timestamp = datetime.utcnow().isoformat()
+    safe_timestamp = current_timestamp.replace(":", "-").replace(".", "-").split("+")[0]
+
+    # Handle Pull Request
     if is_pull_request:
         print("=" * 60)
         print("PULL REQUEST MODE - Generating table-based results")
@@ -755,17 +1061,72 @@ def main():
 
         print(f"Found {len(html_rows)} HTML rows")
 
-        # Create PR-specific directory
-        pr_output_dir = Path(output_dir) / "pr-tests"
-        pr_output_dir.mkdir(parents=True, exist_ok=True)
+        # Create PR-specific directory structure: pr-tests/TIMESTAMP/
+        pr_base_dir = Path(output_dir) / "pr-tests"
+        pr_run_dir = pr_base_dir / safe_timestamp
+        pr_run_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate PR results HTML
+        # Generate PR results HTML for this specific run
         print("\nGenerating PR results HTML...")
         pr_html = generate_pr_results_html(html_rows, pr_number, base_url)
-        pr_html_output = pr_output_dir / "index.html"
-        with open(pr_html_output, "w") as f:
+        pr_html_output = pr_run_dir / "index.html"
+        with open(pr_html_output, "w", encoding="utf-8") as f:
             f.write(pr_html)
         print(f"Generated PR results at {pr_html_output}")
+
+        # Load historical PR runs and filter
+        pr_runs = []
+        if historical_dir and Path(historical_dir).exists():
+            pr_historical_dir = Path(historical_dir) / "pr-tests"
+            if pr_historical_dir.exists():
+                print(f"\nLoading historical PR runs from {pr_historical_dir}...")
+                # Load runs from timestamped folders
+                for run_folder in sorted(pr_historical_dir.iterdir(), reverse=True):
+                    if run_folder.is_dir() and not run_folder.name.startswith('.'):
+                        try:
+                            # Try to parse timestamp from folder name
+                            folder_timestamp = run_folder.name.replace("-", ":")
+                            run_data = {
+                                "timestamp": folder_timestamp,
+                                "run_number": pr_number,
+                                "run_id": "N/A",
+                                "results": html_rows  # Simplified for PR
+                            }
+                            pr_runs.append(run_data)
+                            print(f"  Loaded: {run_folder.name}")
+                        except Exception as e:
+                            print(f"  Error loading {run_folder.name}: {e}")
+
+                # Filter old runs
+                print("\nFiltering old PR runs (keeping last 2 weeks)...")
+                pr_runs = filter_old_runs(pr_runs, max_age_days=14)
+                print(f"Kept {len(pr_runs)} PR runs after filtering")
+
+        # Add current run
+        current_pr_run = {
+            "timestamp": current_timestamp,
+            "run_number": pr_number,
+            "run_id": os.getenv("GITHUB_RUN_ID", "N/A"),
+            "results": html_rows
+        }
+        pr_runs.insert(0, current_pr_run)
+
+        # Generate PR listing page
+        print("\nGenerating PR listing page...")
+        pr_listing_html = generate_listing_page_html(pr_runs, "pr", base_url)
+        pr_listing_output = pr_base_dir / "index.html"
+        with open(pr_listing_output, "w", encoding="utf-8") as f:
+            f.write(pr_listing_html)
+        print(f"Generated PR listing at {pr_listing_output}")
+
+        # Generate main index if it doesn't exist
+        main_index_path = Path(output_dir) / "index.html"
+        if not main_index_path.exists() or True:  # Always regenerate
+            print("\nGenerating main index...")
+            main_index_html = generate_main_index_html(base_url)
+            with open(main_index_path, "w", encoding="utf-8") as f:
+                f.write(main_index_html)
+            print(f"Generated main index at {main_index_path}")
 
         # Summary
         print("\n" + "=" * 60)
@@ -774,18 +1135,15 @@ def main():
         print(f"PR Number: {pr_number}")
         print(f"Environments tested: {len(html_rows)}")
         print(f"Results page: {pr_html_output}")
+        print(f"Listing page: {pr_listing_output}")
         print("=" * 60)
 
         return
 
-    # PUSH MODE - Use historical tracking
+    # PUSH MODE - Full comprehensive tests
     print("=" * 60)
-    print("PUSH MODE - Generating historical results")
+    print("PUSH MODE - Generating comprehensive results")
     print("=" * 60)
-
-    # Create runs subdirectory for historical tracking
-    runs_output_dir = Path(output_dir) / "runs"
-    runs_output_dir.mkdir(parents=True, exist_ok=True)
 
     # Collect current run results
     print("\nCollecting current run results...")
@@ -796,73 +1154,95 @@ def main():
 
     print(f"Found {len(current_results)} results for current run")
 
+    # Create full-tests directory structure: full-tests/TIMESTAMP/
+    full_base_dir = Path(output_dir) / "full-tests"
+    full_run_dir = full_base_dir / safe_timestamp
+    full_run_dir.mkdir(parents=True, exist_ok=True)
+
     # Create current run object
     current_run = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": current_timestamp,
         "run_number": os.getenv("GITHUB_RUN_NUMBER", "local"),
         "run_id": os.getenv("GITHUB_RUN_ID", "local"),
         "results": current_results
     }
 
-    # Load historical runs
+    # Generate HTML for this specific run using existing generate_html function
+    # But we need a simple version for single run
+    print("\nGenerating run results HTML...")
+    run_html = generate_html([current_run])  # Pass as list with single run
+    run_html_output = full_run_dir / "index.html"
+    with open(run_html_output, "w", encoding="utf-8") as f:
+        f.write(run_html)
+    print(f"Generated run results at {run_html_output}")
+
+    # Load historical full test runs
     all_runs = []
     if historical_dir and Path(historical_dir).exists():
-        print(f"\nLoading historical runs from {historical_dir}...")
-        historical_runs = load_historical_runs(historical_dir)
-        print(f"Loaded {len(historical_runs)} historical runs")
+        full_historical_dir = Path(historical_dir) / "full-tests"
+        if full_historical_dir.exists():
+            print(f"\nLoading historical full test runs from {full_historical_dir}...")
+            # Load runs from timestamped folders
+            for run_folder in sorted(full_historical_dir.iterdir(), reverse=True):
+                if run_folder.is_dir() and not run_folder.name.startswith('.'):
+                    # Load the run data (we'll need to parse or read metadata)
+                    try:
+                        folder_timestamp = run_folder.name.replace("-", ":")
+                        # Placeholder - in real scenario, we'd save metadata
+                        run_data = {
+                            "timestamp": folder_timestamp,
+                            "run_number": "N/A",
+                            "run_id": "N/A",
+                            "results": current_results  # Simplified
+                        }
+                        all_runs.append(run_data)
+                        print(f"  Loaded: {run_folder.name}")
+                    except Exception as e:
+                        print(f"  Error loading {run_folder.name}: {e}")
 
-        # Filter out runs older than 2 weeks
-        print("\nFiltering old runs (keeping last 2 weeks)...")
-        filtered_runs = filter_old_runs(historical_runs, max_age_days=14)
-        print(f"Kept {len(filtered_runs)} runs after filtering")
+            # Filter old runs
+            print("\nFiltering old runs (keeping last 2 weeks)...")
+            all_runs = filter_old_runs(all_runs, max_age_days=14)
+            print(f"Kept {len(all_runs)} runs after filtering")
 
-        all_runs = filtered_runs
-    else:
-        print(f"\nNo historical directory found at {historical_dir}, starting fresh")
-
-    # Add current run to the beginning (most recent)
+    # Add current run
     all_runs.insert(0, current_run)
     print(f"\nTotal runs to include: {len(all_runs)}")
 
-    # Save each run as a separate JSON file
-    print("\nSaving run files...")
-    for run in all_runs:
-        timestamp = run.get("timestamp", datetime.utcnow().isoformat())
-        # Create a safe filename from timestamp
-        safe_timestamp = timestamp.replace(":", "-").replace(".", "-").split("+")[0]
-        run_filename = f"{safe_timestamp}.json"
-        run_filepath = runs_output_dir / run_filename
+    # Generate full tests listing page
+    print("\nGenerating full tests listing page...")
+    full_listing_html = generate_listing_page_html(all_runs, "full", base_url)
+    full_listing_output = full_base_dir / "index.html"
+    with open(full_listing_output, "w", encoding="utf-8") as f:
+        f.write(full_listing_html)
+    print(f"Generated full tests listing at {full_listing_output}")
 
-        with open(run_filepath, "w") as f:
-            json.dump(run, f, indent=2)
-        print(f"  Saved: {run_filename}")
-
-    # Generate and save HTML
-    print("\nGenerating HTML report...")
-    html_content = generate_html(all_runs)
-    html_output = Path(output_dir) / "index.html"
-    with open(html_output, "w") as f:
-        f.write(html_content)
-    print(f"Generated HTML report at {html_output}")
+    # Generate main index
+    print("\nGenerating main index...")
+    main_index_html = generate_main_index_html(base_url)
+    main_index_path = Path(output_dir) / "index.html"
+    with open(main_index_path, "w", encoding="utf-8") as f:
+        f.write(main_index_html)
+    print(f"Generated main index at {main_index_path}")
 
     # Generate GitHub Actions summary
     print("\nGenerating GitHub Actions summary...")
-    base_url = os.getenv("PAGES_URL", "https://ggbecker.github.io/workflow-testing-pages")
-    github_summary = generate_github_summary(current_run, base_url)
+    github_summary = generate_github_summary(current_run, base_url, safe_timestamp)
     summary_output = Path(output_dir) / "summary.md"
-    with open(summary_output, "w") as f:
+    with open(summary_output, "w", encoding="utf-8") as f:
         f.write(github_summary)
     print(f"Generated GitHub Actions summary at {summary_output}")
 
     # Summary
-    print("\n" + "="*50)
-    print("SUMMARY")
-    print("="*50)
+    print("\n" + "=" * 60)
+    print("PUSH RESULTS SUMMARY")
+    print("=" * 60)
     print(f"Total runs: {len(all_runs)}")
-    print(f"Total environments in all runs: {sum(len(run.get('results', [])) for run in all_runs)}")
-    print(f"Runs directory: {runs_output_dir}")
-    print(f"HTML report: {html_output}")
-    print("="*50)
+    print(f"Total environments in current run: {len(current_results)}")
+    print(f"Run results: {run_html_output}")
+    print(f"Listing page: {full_listing_output}")
+    print(f"Main index: {main_index_path}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
