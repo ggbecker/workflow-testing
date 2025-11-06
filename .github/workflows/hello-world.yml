@@ -171,13 +171,13 @@ jobs:
 
         # Create comment body
         cat > pr-comment.md << 'EOF'
-        ## 🎯 Test Results - PR #${{ github.event.pull_request.number }}
+        ## 🎯 Test Results - PR #PR_NUMBER_PLACEHOLDER
 
         ### Summary
         - ✅ **Status**: All tests passed
         - 🔬 **Environments Tested**: NUM_TESTS_PLACEHOLDER
         - ⚡ **Test Type**: Fast PR Tests (subset)
-        - 🔗 **Workflow Run**: [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        - 🔗 **Workflow Run**: [#RUN_NUMBER_PLACEHOLDER](https://github.com/REPOSITORY_PLACEHOLDER/actions/runs/RUN_ID_PLACEHOLDER)
 
         ### 📊 Detailed Results
 
@@ -200,8 +200,12 @@ jobs:
         EOF
 
         # Replace placeholders
+        sed -i "s/PR_NUMBER_PLACEHOLDER/${{ github.event.pull_request.number }}/g" pr-comment.md
         sed -i "s/NUM_TESTS_PLACEHOLDER/$NUM_TESTS/g" pr-comment.md
         sed -i "s|TIMESTAMP_PLACEHOLDER|$TIMESTAMP_FOLDER|g" pr-comment.md
+        sed -i "s/RUN_NUMBER_PLACEHOLDER/${{ github.run_number }}/g" pr-comment.md
+        sed -i "s|REPOSITORY_PLACEHOLDER|${{ github.repository }}|g" pr-comment.md
+        sed -i "s/RUN_ID_PLACEHOLDER/${{ github.run_id }}/g" pr-comment.md
 
         # Post comment to PR
         gh pr comment ${{ github.event.pull_request.number }} --body-file pr-comment.md
