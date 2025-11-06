@@ -7,6 +7,26 @@ on:
         description: 'Optional description for this test run'
         required: false
         default: 'Manual comprehensive test run'
+      test_scope:
+        description: 'Test scope'
+        required: true
+        type: choice
+        options:
+          - all-platforms
+          - linux-only
+          - windows-only
+          - macos-only
+        default: 'all-platforms'
+      include_legacy_python:
+        description: 'Include Python 3.8 (legacy support)'
+        required: false
+        type: boolean
+        default: true
+      custom_tag:
+        description: 'Custom tag for this test run (optional)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   generate-matrix:
@@ -31,6 +51,9 @@ jobs:
       env:
         IS_PULL_REQUEST: 'false'
         IS_COMPREHENSIVE: 'true'
+        TEST_SCOPE: ${{ github.event.inputs.test_scope }}
+        INCLUDE_LEGACY_PYTHON: ${{ github.event.inputs.include_legacy_python }}
+        CUSTOM_TAG: ${{ github.event.inputs.custom_tag }}
 
   hello-world:
     needs: generate-matrix
@@ -131,6 +154,9 @@ jobs:
         IS_PULL_REQUEST: 'false'
         IS_COMPREHENSIVE: 'true'
         TEST_DESCRIPTION: ${{ github.event.inputs.description }}
+        TEST_SCOPE: ${{ github.event.inputs.test_scope }}
+        INCLUDE_LEGACY_PYTHON: ${{ github.event.inputs.include_legacy_python }}
+        CUSTOM_TAG: ${{ github.event.inputs.custom_tag }}
 
     - name: Display generated files
       run: |
