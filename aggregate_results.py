@@ -74,6 +74,55 @@ def filter_old_runs(runs, max_age_days=14):
     return filtered_runs
 
 
+def load_runs_from_output(output_base_dir):
+    """Load existing runs from timestamped folders in output directory."""
+    runs = []
+    output_path = Path(output_base_dir)
+
+    if not output_path.exists():
+        print(f"Output directory '{output_base_dir}' does not exist")
+        return runs
+
+    # Find all timestamped folders (format: YYYY-MM-DD-HH-MM-SS)
+    for run_folder in sorted(output_path.iterdir(), reverse=True):
+        if run_folder.is_dir() and not run_folder.name.startswith('.'):
+            # Check if folder name looks like a timestamp
+            if len(run_folder.name) > 10 and '-' in run_folder.name:
+                try:
+                    # Convert folder name back to ISO timestamp
+                    folder_timestamp = run_folder.name.replace("-", ":", 2)  # Replace first 2 hyphens with colons
+                    folder_timestamp = folder_timestamp.replace("-", ":", 1)  # Replace third hyphen with colon
+
+                    # Create run data placeholder
+                    run_data = {
+                        "timestamp": folder_timestamp,
+                        "run_number": "N/A",
+                        "run_id": "N/A",
+                        "results": [],  # Will be populated if needed
+                        "folder_path": str(run_folder)
+                    }
+                    runs.append(run_data)
+                    print(f"  Found run folder: {run_folder.name}")
+                except Exception as e:
+                    print(f"  Error parsing folder {run_folder.name}: {e}")
+
+    return runs
+
+
+def delete_old_run_folders(runs_to_delete):
+    """Delete folders for old runs from disk."""
+    import shutil
+
+    for run in runs_to_delete:
+        folder_path = run.get("folder_path")
+        if folder_path and Path(folder_path).exists():
+            try:
+                shutil.rmtree(folder_path)
+                print(f"  Deleted old run folder: {folder_path}")
+            except Exception as e:
+                print(f"  Error deleting folder {folder_path}: {e}")
+
+
 def generate_html(all_runs):
     """Generate HTML report from all runs (historical + current)."""
     html = """<!DOCTYPE html>
@@ -1063,44 +1112,50 @@ def main():
 
         # Create PR-specific directory structure: pr-tests/TIMESTAMP/
         pr_base_dir = Path(output_dir) / "pr-tests"
+        pr_base_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load existing PR runs from output directory
+        print(f"\nLoading existing PR runs from {pr_base_dir}...")
+        pr_runs = load_runs_from_output(pr_base_dir)
+        print(f"Found {len(pr_runs)} existing PR runs")
+
+        # Filter old runs and delete their folders
+        print("\nFiltering old PR runs (keeping last 2 weeks)...")
+        cutoff_date = datetime.utcnow() - timedelta(days=14)
+        old_runs = []
+        kept_runs = []
+
+        for run in pr_runs:
+            try:
+                run_timestamp = datetime.fromisoformat(run["timestamp"].replace("Z", "+00:00"))
+                if run_timestamp >= cutoff_date:
+                    kept_runs.append(run)
+                    print(f"  Keeping run from {run_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+                else:
+                    old_runs.append(run)
+                    print(f"  Marking for deletion: run from {run_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            except (KeyError, ValueError) as e:
+                print(f"  Error parsing timestamp for run: {e}")
+                kept_runs.append(run)  # Keep runs with invalid timestamps
+
+        # Delete old run folders
+        if old_runs:
+            print(f"\nDeleting {len(old_runs)} old run folders...")
+            delete_old_run_folders(old_runs)
+
+        pr_runs = kept_runs
+        print(f"Kept {len(pr_runs)} PR runs after filtering")
+
+        # Create new run folder and generate HTML
         pr_run_dir = pr_base_dir / safe_timestamp
         pr_run_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate PR results HTML for this specific run
         print("\nGenerating PR results HTML...")
         pr_html = generate_pr_results_html(html_rows, pr_number, base_url)
         pr_html_output = pr_run_dir / "index.html"
         with open(pr_html_output, "w", encoding="utf-8") as f:
             f.write(pr_html)
         print(f"Generated PR results at {pr_html_output}")
-
-        # Load historical PR runs and filter
-        pr_runs = []
-        if historical_dir and Path(historical_dir).exists():
-            pr_historical_dir = Path(historical_dir) / "pr-tests"
-            if pr_historical_dir.exists():
-                print(f"\nLoading historical PR runs from {pr_historical_dir}...")
-                # Load runs from timestamped folders
-                for run_folder in sorted(pr_historical_dir.iterdir(), reverse=True):
-                    if run_folder.is_dir() and not run_folder.name.startswith('.'):
-                        try:
-                            # Try to parse timestamp from folder name
-                            folder_timestamp = run_folder.name.replace("-", ":")
-                            run_data = {
-                                "timestamp": folder_timestamp,
-                                "run_number": pr_number,
-                                "run_id": "N/A",
-                                "results": html_rows  # Simplified for PR
-                            }
-                            pr_runs.append(run_data)
-                            print(f"  Loaded: {run_folder.name}")
-                        except Exception as e:
-                            print(f"  Error loading {run_folder.name}: {e}")
-
-                # Filter old runs
-                print("\nFiltering old PR runs (keeping last 2 weeks)...")
-                pr_runs = filter_old_runs(pr_runs, max_age_days=14)
-                print(f"Kept {len(pr_runs)} PR runs after filtering")
 
         # Add current run
         current_pr_run = {
@@ -1156,8 +1211,39 @@ def main():
 
     # Create full-tests directory structure: full-tests/TIMESTAMP/
     full_base_dir = Path(output_dir) / "full-tests"
-    full_run_dir = full_base_dir / safe_timestamp
-    full_run_dir.mkdir(parents=True, exist_ok=True)
+    full_base_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load existing full test runs from output directory
+    print(f"\nLoading existing full test runs from {full_base_dir}...")
+    all_runs = load_runs_from_output(full_base_dir)
+    print(f"Found {len(all_runs)} existing full test runs")
+
+    # Filter old runs and delete their folders
+    print("\nFiltering old runs (keeping last 2 weeks)...")
+    cutoff_date = datetime.utcnow() - timedelta(days=14)
+    old_runs = []
+    kept_runs = []
+
+    for run in all_runs:
+        try:
+            run_timestamp = datetime.fromisoformat(run["timestamp"].replace("Z", "+00:00"))
+            if run_timestamp >= cutoff_date:
+                kept_runs.append(run)
+                print(f"  Keeping run from {run_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            else:
+                old_runs.append(run)
+                print(f"  Marking for deletion: run from {run_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+        except (KeyError, ValueError) as e:
+            print(f"  Error parsing timestamp for run: {e}")
+            kept_runs.append(run)  # Keep runs with invalid timestamps
+
+    # Delete old run folders
+    if old_runs:
+        print(f"\nDeleting {len(old_runs)} old run folders...")
+        delete_old_run_folders(old_runs)
+
+    all_runs = kept_runs
+    print(f"Kept {len(all_runs)} runs after filtering")
 
     # Create current run object
     current_run = {
@@ -1167,43 +1253,16 @@ def main():
         "results": current_results
     }
 
-    # Generate HTML for this specific run using existing generate_html function
-    # But we need a simple version for single run
+    # Create new run folder and generate HTML
+    full_run_dir = full_base_dir / safe_timestamp
+    full_run_dir.mkdir(parents=True, exist_ok=True)
+
     print("\nGenerating run results HTML...")
     run_html = generate_html([current_run])  # Pass as list with single run
     run_html_output = full_run_dir / "index.html"
     with open(run_html_output, "w", encoding="utf-8") as f:
         f.write(run_html)
     print(f"Generated run results at {run_html_output}")
-
-    # Load historical full test runs
-    all_runs = []
-    if historical_dir and Path(historical_dir).exists():
-        full_historical_dir = Path(historical_dir) / "full-tests"
-        if full_historical_dir.exists():
-            print(f"\nLoading historical full test runs from {full_historical_dir}...")
-            # Load runs from timestamped folders
-            for run_folder in sorted(full_historical_dir.iterdir(), reverse=True):
-                if run_folder.is_dir() and not run_folder.name.startswith('.'):
-                    # Load the run data (we'll need to parse or read metadata)
-                    try:
-                        folder_timestamp = run_folder.name.replace("-", ":")
-                        # Placeholder - in real scenario, we'd save metadata
-                        run_data = {
-                            "timestamp": folder_timestamp,
-                            "run_number": "N/A",
-                            "run_id": "N/A",
-                            "results": current_results  # Simplified
-                        }
-                        all_runs.append(run_data)
-                        print(f"  Loaded: {run_folder.name}")
-                    except Exception as e:
-                        print(f"  Error loading {run_folder.name}: {e}")
-
-            # Filter old runs
-            print("\nFiltering old runs (keeping last 2 weeks)...")
-            all_runs = filter_old_runs(all_runs, max_age_days=14)
-            print(f"Kept {len(all_runs)} runs after filtering")
 
     # Add current run
     all_runs.insert(0, current_run)
