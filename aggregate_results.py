@@ -489,26 +489,29 @@ def collect_html_rows(artifacts_dir):
 
 def generate_pr_results_html(html_rows, pr_number, base_url):
     """Generate table-based HTML for PR test results."""
-    html = """<!DOCTYPE html>
+    num_envs = len(html_rows)
+    generated_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+
+    html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pull Request Test Results</title>
     <style>
-        body {
+        body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
-        }
-        h1 {
+        }}
+        h1 {{
             color: #24292e;
-            border-bottom: 2px solid: #6f42c1;
+            border-bottom: 2px solid #6f42c1;
             padding-bottom: 10px;
-        }
-        .pr-badge {
+        }}
+        .pr-badge {{
             display: inline-block;
             padding: 4px 12px;
             background: #6f42c1;
@@ -516,51 +519,51 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
             border-radius: 4px;
             font-size: 0.9em;
             margin-left: 10px;
-        }
-        .summary {
+        }}
+        .summary {{
             background: white;
             padding: 20px;
             border-radius: 6px;
             margin-bottom: 20px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .info-grid {
+        }}
+        .info-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-top: 15px;
-        }
-        .info-item {
+        }}
+        .info-item {{
             background: #f6f8fa;
             padding: 12px;
             border-radius: 4px;
             border-left: 3px solid #6f42c1;
-        }
-        .info-label {
+        }}
+        .info-label {{
             font-size: 0.85em;
             color: #586069;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-        }
-        .info-value {
+        }}
+        .info-value {{
             font-size: 1.2em;
             color: #24292e;
             margin-top: 5px;
-        }
-        table {
+        }}
+        table {{
             width: 100%;
             background: white;
             border-collapse: collapse;
             border-radius: 6px;
             overflow: hidden;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        thead {
+        }}
+        thead {{
             background: #f6f8fa;
             border-bottom: 2px solid #e1e4e8;
-        }
-        th {
+        }}
+        th {{
             padding: 12px;
             text-align: left;
             font-weight: 600;
@@ -568,25 +571,25 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
             font-size: 0.9em;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-        }
-        td {
+        }}
+        td {{
             padding: 12px;
             border-bottom: 1px solid #e1e4e8;
             color: #24292e;
-        }
-        tr:last-child td {
+        }}
+        tr:last-child td {{
             border-bottom: none;
-        }
-        tr:hover {
+        }}
+        tr:hover {{
             background-color: #f6f8fa;
-        }
-        footer {
+        }}
+        footer {{
             margin-top: 40px;
             text-align: center;
             color: #6a737d;
             font-size: 0.9em;
-        }
-        .back-link {
+        }}
+        .back-link {{
             display: inline-block;
             margin-top: 20px;
             padding: 8px 16px;
@@ -595,10 +598,10 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
             text-decoration: none;
             border-radius: 4px;
             transition: background 0.2s;
-        }
-        .back-link:hover {
+        }}
+        .back-link:hover {{
             background: #0256c7;
-        }
+        }}
     </style>
 </head>
 <body>
@@ -609,7 +612,7 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
         <div class="info-grid">
             <div class="info-item">
                 <div class="info-label">Environments Tested</div>
-                <div class="info-value">{len(html_rows)}</div>
+                <div class="info-value">{num_envs}</div>
             </div>
             <div class="info-item">
                 <div class="info-label">Test Type</div>
@@ -617,7 +620,7 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
             </div>
             <div class="info-item">
                 <div class="info-label">Generated</div>
-                <div class="info-value">{datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</div>
+                <div class="info-value">{generated_time}</div>
             </div>
         </div>
     </div>
@@ -641,7 +644,7 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
     for row in html_rows:
         html += row + "\n"
 
-    html += """
+    html += f"""
         </tbody>
     </table>
 
@@ -654,7 +657,7 @@ def generate_pr_results_html(html_rows, pr_number, base_url):
 </html>
 """
 
-    return html.format(pr_number=pr_number, base_url=base_url, len=len)
+    return html
 
 
 def generate_github_summary(current_run, base_url):

@@ -1,3 +1,5 @@
+Test
+
 # GitHub Actions Matrix Testing with Results Publishing
 
 This repository demonstrates a GitHub Actions workflow that:
@@ -38,7 +40,7 @@ The workflow consists of 3 jobs:
 
 1. **generate-matrix** - Runs the Python script to generate the test matrix
 2. **hello-world** - Executes tests across all matrix combinations and uploads results
-3. **aggregate-and-publish** - Collects all results, generates HTML, publishes to GitHub Pages, and posts direct URLs to the workflow summary
+3. **aggregate-and-publish** - Collects all results, generates HTML, publishes to GitHub Pages, posts direct URLs to the workflow summary, and comments on PRs
 
 ### GitHub Actions Summary
 
@@ -52,6 +54,17 @@ To view the summary:
 1. Go to the Actions tab in your repository
 2. Click on a workflow run
 3. The summary appears at the top with all direct links
+
+### Pull Request Comments
+
+For pull requests, the workflow automatically posts a comment with:
+- ✅ Test status
+- 🔬 Number of environments tested
+- 🔗 Direct link to detailed results page
+- ℹ️ Information about test coverage
+- 📊 Link to workflow run
+
+**Note**: The workflow uses the default `GITHUB_TOKEN` with `pull-requests: write` permission to post PR comments.
 
 ## Setup Instructions
 
@@ -131,6 +144,7 @@ The workflow automatically maintains a historical record of test results:
 5. Regenerates the HTML report with all retained runs
 6. Publishes only `index.html` and `runs/` directory back to GitHub Pages
    - **Note**: The workflow uses `keep_files: true` to preserve any other files in your GitHub Pages repository
+   - The `.github` folder is explicitly protected with `exclude_assets: '.github'`
    - Only `index.html` and files in `runs/` directory are created/updated
 
 ### Customizing Retention Period
@@ -146,9 +160,15 @@ filtered_runs = filter_old_runs(historical_runs, max_age_days=14)  # Change 14 t
 ### Pull Request Results
 
 After a PR workflow runs:
-1. View the summary in the GitHub Actions tab (includes test count and status)
-2. PR results are published to: `https://YOUR_USERNAME.github.io/YOUR_PAGES_REPO/pr-tests/`
-3. The PR results page shows:
+1. **Automatic PR Comment**: A comment is automatically posted to the PR with:
+   - Test status and summary
+   - Number of environments tested
+   - Direct link to detailed results
+   - Information about the test type
+   - Link to workflow run
+2. View the summary in the GitHub Actions tab (includes test count and status)
+3. PR results are published to: `https://YOUR_USERNAME.github.io/YOUR_PAGES_REPO/pr-tests/`
+4. The PR results page shows:
    - Summary with PR number and test type
    - Table with all tested environments
    - Status badge for each test
@@ -261,7 +281,8 @@ YOUR_PAGES_REPO/
   - Automatic summary posted to each workflow run
   - Different summaries for PR vs push events
   - Direct links to results in summary
+  - **PR Comments**: Automatic comment on pull requests with test results and links
 - **Cross-Platform Testing**: Test across Linux, Windows, and macOS with multiple Python versions
-- **Safe Publishing**: Uses `keep_files: true` to preserve existing files in GitHub Pages repository
+- **Safe Publishing**: Uses `keep_files: true` and `exclude_assets: '.github'` to preserve existing files and protect the `.github` folder in the GitHub Pages repository
 - **Flexible Output**: Results available as both JSON (for processing) and HTML (for viewing)
 - **Zero Maintenance**: Once set up, the workflow handles everything automatically
