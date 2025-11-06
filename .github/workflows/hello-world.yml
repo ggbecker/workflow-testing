@@ -182,24 +182,42 @@ jobs:
         echo "📄 **[View All PR Test Runs](https://ggbecker.github.io/workflow-testing-pages/pr-tests/)**" >> $GITHUB_STEP_SUMMARY
         echo "📊 **[View Dashboard](https://ggbecker.github.io/workflow-testing-pages)**" >> $GITHUB_STEP_SUMMARY
 
-    - name: Publish results to GitHub Pages repository
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        # IMPORTANT: Create a Personal Access Token with 'repo' scope
-        # and add it as a secret named GH_PAGES_DEPLOY_TOKEN
-        personal_token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN }}
-        # IMPORTANT: Replace with your GitHub Pages repository
-        # Format: username/repository-name
-        external_repository: ggbecker/workflow-testing-pages
-        publish_branch: main  # or gh-pages, depending on your setup
-        publish_dir: ./output
-        # Note: We manage content explicitly by copying existing files to output,
-        # deleting old test runs, and adding new ones. keep_files ensures anything not in output is preserved.
-        keep_files: true
-        exclude_assets: '.github'
-        user_name: 'github-actions[bot]'
-        user_email: 'github-actions[bot]@users.noreply.github.com'
-        commit_message: ${{ github.event_name == 'pull_request' && format('Update PR \#{0} test results', github.event.pull_request.number) || format('Update test results from workflow run \#{0}', github.run_number) }}
+    - name: Copy output files back to gh-pages-content
+      run: |
+        echo "Copying output files back to gh-pages-content..."
+        # Copy everything from output back to gh-pages-content (excluding .git)
+        rsync -av --exclude='.git' output/ gh-pages-content/
+        echo "Files copied back to gh-pages-content"
+
+        echo "Final content structure:"
+        ls -la gh-pages-content/
+
+    - name: Commit and push changes to workflow-testing-pages
+      working-directory: gh-pages-content
+      run: |
+        # Configure git
+        git config user.name 'github-actions[bot]'
+        git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+        # Add all changes
+        git add .
+
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          # Create commit message
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            COMMIT_MSG="Update PR #${{ github.event.pull_request.number }} test results"
+          else
+            COMMIT_MSG="Update test results from workflow run #${{ github.run_number }}"
+          fi
+
+          # Commit and push
+          git commit -m "$COMMIT_MSG"
+          git push
+          echo "Changes pushed to workflow-testing-pages"
+        fi
 
     - name: Comment on PR with test results
       if: github.event_name == 'pull_request'
