@@ -83,13 +83,29 @@ jobs:
         path: artifacts
 
     - name: Checkout GitHub Pages repository
-      if: github.event_name != 'pull_request'
       uses: actions/checkout@v4
       with:
         repository: ggbecker/workflow-testing-pages
         ref: main
         path: gh-pages-content
         token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN }}
+
+    - name: Copy existing content to output directory
+      run: |
+        # Create output directory
+        mkdir -p output
+
+        # Copy all existing content from gh-pages-content to output
+        # This preserves everything by default
+        if [ -d "gh-pages-content" ]; then
+          # Copy everything except .git folder
+          rsync -av --exclude='.git' gh-pages-content/ output/
+          echo "Copied existing content to output directory"
+          echo "Existing structure:"
+          ls -la output/
+        else
+          echo "No existing content found"
+        fi
 
     - name: Aggregate results and generate HTML
       run: |
@@ -104,7 +120,7 @@ jobs:
 
     - name: Display generated files
       run: |
-        echo "Generated files:"
+        echo "Generated/updated files in output:"
         ls -la output/
 
     - name: Post summary to GitHub Actions (Push)
@@ -151,9 +167,9 @@ jobs:
         external_repository: ggbecker/workflow-testing-pages
         publish_branch: main  # or gh-pages, depending on your setup
         publish_dir: ./output
-        # Preserve other files and explicitly exclude .github folder
+        # Note: We manage content explicitly by copying existing files to output,
+        # deleting old test runs, and adding new ones. keep_files ensures anything not in output is preserved.
         keep_files: true
-        exclude_assets: '.github'
         user_name: 'github-actions[bot]'
         user_email: 'github-actions[bot]@users.noreply.github.com'
         commit_message: ${{ github.event_name == 'pull_request' && format('Update PR \#{0} test results', github.event.pull_request.number) || format('Update test results from workflow run \#{0}', github.run_number) }}
