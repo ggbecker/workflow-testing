@@ -98,11 +98,23 @@ jobs:
         # Copy all existing content from gh-pages-content to output
         # This preserves everything by default
         if [ -d "gh-pages-content" ]; then
-          # Copy everything except .git folder
+          # Copy everything except .git folder (explicitly include hidden files)
           rsync -av --exclude='.git' gh-pages-content/ output/
           echo "Copied existing content to output directory"
           echo "Existing structure:"
           ls -la output/
+          echo ""
+          echo "Checking if .github was copied:"
+          if [ -d "gh-pages-content/.github" ]; then
+            echo "✓ Source has .github folder"
+            if [ -d "output/.github" ]; then
+              echo "✓ .github folder was copied to output"
+            else
+              echo "✗ .github folder was NOT copied to output"
+            fi
+          else
+            echo "Source does not have .github folder"
+          fi
         else
           echo "No existing content found"
         fi
@@ -122,6 +134,20 @@ jobs:
       run: |
         echo "Generated/updated files in output:"
         ls -la output/
+        echo ""
+        echo "Checking for .github folder in output:"
+        if [ -d "output/.github" ]; then
+          echo "✓ .github folder exists in output"
+          ls -la output/.github/
+          if [ -d "output/.github/workflows" ]; then
+            echo "✓ .github/workflows folder exists"
+            ls -la output/.github/workflows/
+          else
+            echo "✗ .github/workflows folder NOT found in output"
+          fi
+        else
+          echo "✗ .github folder NOT found in output"
+        fi
 
     - name: Post summary to GitHub Actions (Push)
       if: github.event_name != 'pull_request'
@@ -170,6 +196,7 @@ jobs:
         # Note: We manage content explicitly by copying existing files to output,
         # deleting old test runs, and adding new ones. keep_files ensures anything not in output is preserved.
         keep_files: true
+        exclude_assets: '.github'
         user_name: 'github-actions[bot]'
         user_email: 'github-actions[bot]@users.noreply.github.com'
         commit_message: ${{ github.event_name == 'pull_request' && format('Update PR \#{0} test results', github.event.pull_request.number) || format('Update test results from workflow run \#{0}', github.run_number) }}
