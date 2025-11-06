@@ -27,6 +27,8 @@ jobs:
         MATRIX=$(python generate_matrix.py)
         echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
         echo "Generated matrix: $MATRIX"
+      env:
+        IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
 
   hello-world:
     needs: generate-matrix
@@ -53,7 +55,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: result-${{ matrix.os }}-${{ matrix.python-version }}
-        path: result.json
+        path: |
+          result.json
+          result.html
         retention-days: 30
 
   aggregate-and-publish:
@@ -76,6 +80,7 @@ jobs:
         path: artifacts
 
     - name: Checkout GitHub Pages repository
+      if: github.event_name != 'pull_request'
       uses: actions/checkout@v4
       with:
         repository: ggbecker/workflow-testing-pages
@@ -91,13 +96,16 @@ jobs:
         OUTPUT_DIR: output
         HISTORICAL_DIR: gh-pages-content
         PAGES_URL: https://ggbecker.github.io/workflow-testing-pages
+        IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
 
     - name: Display generated files
       run: |
         echo "Generated files:"
         ls -la output/
 
-    - name: Post summary to GitHub Actions
+    - name: Post summary to GitHub Actions (Push)
+      if: github.event_name != 'pull_request'
       run: |
         cat output/summary.md >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -105,7 +113,28 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "📄 **Full Report**: https://ggbecker.github.io/workflow-testing-pages" >> $GITHUB_STEP_SUMMARY
 
+    - name: Post summary to GitHub Actions (PR)
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "# 🎯 Pull Request Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **PR Number**: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Test Type**: Fast PR Tests (subset)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environments Tested**: $(find artifacts -name "result.html" | wc -l)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📊 Results" >> $GITHUB_STEP_SUMMARY
+        echo "All tests passed! ✅" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "💡 **Note**: Pull requests run a faster subset of tests. Full tests run on push to main." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📄 **Full Historical Results**: https://ggbecker.github.io/workflow-testing-pages" >> $GITHUB_STEP_SUMMARY
+        echo "📄 **PR Test Results**: https://ggbecker.github.io/workflow-testing-pages/pr-tests/" >> $GITHUB_STEP_SUMMARY
+
     - name: Publish to GitHub Pages repository
+      if: github.event_name != 'pull_request'
       uses: peaceiris/actions-gh-pages@v4
       with:
         # IMPORTANT: Create a Personal Access Token with 'repo' scope
@@ -121,3 +150,17 @@ jobs:
         user_name: 'github-actions[bot]'
         user_email: 'github-actions[bot]@users.noreply.github.com'
         commit_message: 'Update test results from workflow run #${{ github.run_number }}'
+
+    - name: Publish PR results to GitHub Pages repository
+      if: github.event_name == 'pull_request'
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        personal_token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN }}
+        external_repository: ggbecker/workflow-testing-pages
+        publish_branch: main
+        publish_dir: ./output/pr-tests
+        destination_dir: pr-tests
+        keep_files: true
+        user_name: 'github-actions[bot]'
+        user_email: 'github-actions[bot]@users.noreply.github.com'
+        commit_message: 'Update PR #${{ github.event.pull_request.number }} test results'

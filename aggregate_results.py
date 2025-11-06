@@ -465,6 +465,198 @@ def generate_html(all_runs):
     return html
 
 
+def collect_html_rows(artifacts_dir):
+    """Collect all result.html files from artifacts directory."""
+    html_rows = []
+    artifacts_path = Path(artifacts_dir)
+
+    if not artifacts_path.exists():
+        print(f"Artifacts directory '{artifacts_dir}' does not exist")
+        return html_rows
+
+    # Find all result.html files
+    for html_file in sorted(artifacts_path.rglob("result.html")):
+        try:
+            with open(html_file, "r") as f:
+                row_content = f.read().strip()
+                html_rows.append(row_content)
+                print(f"Loaded HTML row: {html_file}")
+        except Exception as e:
+            print(f"Error loading {html_file}: {e}")
+
+    return html_rows
+
+
+def generate_pr_results_html(html_rows, pr_number, base_url):
+    """Generate table-based HTML for PR test results."""
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pull Request Test Results</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #24292e;
+            border-bottom: 2px solid: #6f42c1;
+            padding-bottom: 10px;
+        }
+        .pr-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #6f42c1;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+        .summary {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .info-item {
+            background: #f6f8fa;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 3px solid #6f42c1;
+        }
+        .info-label {
+            font-size: 0.85em;
+            color: #586069;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .info-value {
+            font-size: 1.2em;
+            color: #24292e;
+            margin-top: 5px;
+        }
+        table {
+            width: 100%;
+            background: white;
+            border-collapse: collapse;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        thead {
+            background: #f6f8fa;
+            border-bottom: 2px solid #e1e4e8;
+        }
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #24292e;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e1e4e8;
+            color: #24292e;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tr:hover {
+            background-color: #f6f8fa;
+        }
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #6a737d;
+            font-size: 0.9em;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 8px 16px;
+            background: #0366d6;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .back-link:hover {
+            background: #0256c7;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pull Request Test Results <span class="pr-badge">PR #{pr_number}</span></h1>
+
+    <div class="summary">
+        <h2>Summary</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Environments Tested</div>
+                <div class="info-value">{len(html_rows)}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Test Type</div>
+                <div class="info-value">Fast PR Tests</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Generated</div>
+                <div class="info-value">{datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</div>
+            </div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>System</th>
+                <th>Python Version</th>
+                <th>Platform</th>
+                <th>Architecture</th>
+                <th>Machine</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+
+    # Add all the HTML rows
+    for row in html_rows:
+        html += row + "\n"
+
+    html += """
+        </tbody>
+    </table>
+
+    <a href="{base_url}" class="back-link">← View Full Historical Results</a>
+
+    <footer>
+        <p>Pull Request Test Results - Faster subset of tests for quick feedback</p>
+    </footer>
+</body>
+</html>
+"""
+
+    return html.format(pr_number=pr_number, base_url=base_url, len=len)
+
+
 def generate_github_summary(current_run, base_url):
     """Generate markdown summary for GitHub Actions step summary."""
     run_number = current_run.get("run_number", "N/A")
@@ -538,14 +730,62 @@ def main():
     artifacts_dir = os.getenv("ARTIFACTS_DIR", "artifacts")
     output_dir = os.getenv("OUTPUT_DIR", "output")
     historical_dir = os.getenv("HISTORICAL_DIR", "")
+    is_pull_request = os.getenv("IS_PULL_REQUEST", "false") == "true"
+    pr_number = os.getenv("PR_NUMBER", "unknown")
+    base_url = os.getenv("PAGES_URL", "https://ggbecker.github.io/workflow-testing-pages")
 
-    # Create output directory and runs subdirectory
+    # Create output directory
     Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # Handle Pull Request differently from Push
+    if is_pull_request:
+        print("=" * 60)
+        print("PULL REQUEST MODE - Generating table-based results")
+        print("=" * 60)
+
+        # Collect HTML rows from artifacts
+        print("\nCollecting HTML rows...")
+        html_rows = collect_html_rows(artifacts_dir)
+
+        if not html_rows:
+            print("Warning: No HTML rows found!")
+
+        print(f"Found {len(html_rows)} HTML rows")
+
+        # Create PR-specific directory
+        pr_output_dir = Path(output_dir) / "pr-tests"
+        pr_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate PR results HTML
+        print("\nGenerating PR results HTML...")
+        pr_html = generate_pr_results_html(html_rows, pr_number, base_url)
+        pr_html_output = pr_output_dir / "index.html"
+        with open(pr_html_output, "w") as f:
+            f.write(pr_html)
+        print(f"Generated PR results at {pr_html_output}")
+
+        # Summary
+        print("\n" + "=" * 60)
+        print("PR RESULTS SUMMARY")
+        print("=" * 60)
+        print(f"PR Number: {pr_number}")
+        print(f"Environments tested: {len(html_rows)}")
+        print(f"Results page: {pr_html_output}")
+        print("=" * 60)
+
+        return
+
+    # PUSH MODE - Use historical tracking
+    print("=" * 60)
+    print("PUSH MODE - Generating historical results")
+    print("=" * 60)
+
+    # Create runs subdirectory for historical tracking
     runs_output_dir = Path(output_dir) / "runs"
     runs_output_dir.mkdir(parents=True, exist_ok=True)
 
     # Collect current run results
-    print("Collecting current run results...")
+    print("\nCollecting current run results...")
     current_results = collect_results(artifacts_dir)
 
     if not current_results:

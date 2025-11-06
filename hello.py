@@ -8,6 +8,27 @@ import os
 from datetime import datetime
 
 
+def generate_html_row(results):
+    """Generate HTML table row from results."""
+    python_ver = f"{results['python_version_info']['major']}.{results['python_version_info']['minor']}.{results['python_version_info']['micro']}"
+
+    # Status badge (always success for now, can be extended)
+    status_badge = '<span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 3px; font-size: 0.85em;">✓ Pass</span>'
+
+    html = f"""
+        <tr>
+            <td>{results['timestamp']}</td>
+            <td><strong>{results['system']}</strong></td>
+            <td>{python_ver}</td>
+            <td>{results['platform']}</td>
+            <td>{results['architecture']}</td>
+            <td>{results['machine']}</td>
+            <td>{status_badge}</td>
+        </tr>"""
+
+    return html
+
+
 def main():
     """Print hello world message with environment information."""
     print("Hello, World!")
@@ -35,12 +56,18 @@ def main():
         "github_run_number": os.getenv("GITHUB_RUN_NUMBER", "N/A"),
     }
 
-    # Save results to JSON file
-    output_file = "result.json"
-    with open(output_file, "w") as f:
+    # Save results as JSON (for backward compatibility and processing)
+    json_file = "result.json"
+    with open(json_file, "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\nResults saved to {output_file}")
+    # Generate and save HTML table row
+    html_row = generate_html_row(results)
+    html_file = "result.html"
+    with open(html_file, "w") as f:
+        f.write(html_row)
+
+    print(f"\nResults saved to {json_file} and {html_file}")
 
 
 if __name__ == "__main__":

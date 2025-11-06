@@ -3,6 +3,7 @@
 
 import json
 import sys
+import os
 from datetime import datetime
 
 
@@ -12,43 +13,38 @@ def generate_matrix():
 
     This function can include any logic you need:
     - Date-based conditions
-    - Environment variables
+    - Environment variables (including PR detection)
     - External API calls
     - Configuration files
     - Conditional combinations
     """
 
-    # Example 1: Full matrix
-    full_matrix = {
-        "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
-        "python-version": ["3.9", "3.10", "3.11", "3.12"]
-    }
+    # Detect if running on a pull request
+    is_pull_request = os.getenv("IS_PULL_REQUEST", "false") == "true"
 
-    # Example 2: Conditional logic based on day of week
-    # On weekends, run comprehensive tests; on weekdays, run minimal tests
-    current_day = datetime.now().weekday()
-
-    if current_day >= 5:  # Saturday or Sunday
-        matrix = {
-            "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
-            "python-version": ["3.9", "3.10", "3.11", "3.12"]
-        }
-    else:  # Weekdays - minimal testing
+    if is_pull_request:
+        # Pull Request: Run fast, minimal tests
+        # Only test on Ubuntu with latest Python versions
         matrix = {
             "os": ["ubuntu-latest"],
             "python-version": ["3.11", "3.12"]
         }
+        print(f"Generating PR matrix (fast tests)", file=sys.stderr)
+    else:
+        # Push to main: Run comprehensive tests
+        # Test across all platforms and Python versions
+        matrix = {
+            "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
+            "python-version": ["3.9", "3.10", "3.11", "3.12"]
+        }
+        print(f"Generating push matrix (comprehensive tests)", file=sys.stderr)
 
-    # Example 3: Include specific combinations
-    # You can also define specific combinations instead of a cross-product
-    # matrix = {
-    #     "include": [
-    #         {"os": "ubuntu-latest", "python-version": "3.12"},
-    #         {"os": "ubuntu-latest", "python-version": "3.11"},
-    #         {"os": "windows-latest", "python-version": "3.12"},
-    #         {"os": "macos-latest", "python-version": "3.11"},
-    #     ]
-    # }
+    # Alternative: Use day-based logic as fallback
+    # current_day = datetime.now().weekday()
+    # if current_day >= 5:  # Saturday or Sunday
+    #     matrix = full_matrix
+    # else:
+    #     matrix = minimal_matrix
 
     return matrix
 

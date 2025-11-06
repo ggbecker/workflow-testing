@@ -1,18 +1,36 @@
 # GitHub Actions Matrix Testing with Results Publishing
 
 This repository demonstrates a GitHub Actions workflow that:
-1. Dynamically generates a test matrix using Python
+1. Dynamically generates a test matrix using Python (different for PRs vs pushes)
 2. Runs tests across multiple environments
-3. Collects and aggregates results with historical tracking
-4. Automatically maintains a 2-week rolling history
-5. Publishes results to a GitHub Pages repository as interactive HTML
+3. **Pull Requests**: Fast, minimal tests with table-based results
+4. **Push to Main**: Comprehensive tests with historical tracking (2-week rolling history)
+5. Publishes results to a GitHub Pages repository with separate views for PRs and historical data
 
 ## Files
 
-- **hello.py** - Main test script that outputs structured JSON results
-- **generate_matrix.py** - Dynamically generates the test matrix configuration
-- **aggregate_results.py** - Aggregates all test results and generates HTML report
+- **hello.py** - Main test script that outputs both JSON and HTML table rows
+- **generate_matrix.py** - Dynamically generates the test matrix (different for PR vs push)
+- **aggregate_results.py** - Aggregates results and generates HTML (table-based for PRs, historical for pushes)
 - **.github/workflows/hello-world.yml** - GitHub Actions workflow configuration
+
+## Pull Request vs Push Behavior
+
+This workflow behaves differently depending on whether it's triggered by a pull request or a push to main:
+
+| Aspect | Pull Request | Push to Main |
+|--------|--------------|--------------|
+| **Test Coverage** | Fast, minimal tests | Comprehensive tests |
+| **Matrix Size** | Ubuntu + Python 3.11, 3.12 | All OS + Python 3.9-3.12 |
+| **Results Format** | Table-based HTML | Historical view with collapsible sections |
+| **Storage Location** | `/pr-tests/` | `/` (root) and `/runs/` |
+| **History Tracking** | No (overwritten each time) | Yes (2-week rolling window) |
+| **Purpose** | Quick feedback for PRs | Full regression testing |
+
+### Why This Separation?
+
+- **PRs**: Developers need fast feedback. Running a minimal test matrix (2 environments) provides quick validation.
+- **Push**: After merge, run comprehensive tests (12 environments) to ensure nothing broke across all platforms.
 
 ## Workflow Overview
 
@@ -125,9 +143,22 @@ filtered_runs = filter_old_runs(historical_runs, max_age_days=14)  # Change 14 t
 
 ## Viewing Results
 
-After the workflow runs successfully:
+### Pull Request Results
+
+After a PR workflow runs:
+1. View the summary in the GitHub Actions tab (includes test count and status)
+2. PR results are published to: `https://YOUR_USERNAME.github.io/YOUR_PAGES_REPO/pr-tests/`
+3. The PR results page shows:
+   - Summary with PR number and test type
+   - Table with all tested environments
+   - Status badge for each test
+   - Link back to full historical results
+
+### Push Results (Historical View)
+
+After a push to main:
 1. Results are published to your GitHub Pages repository
-2. View the HTML report at: `https://YOUR_USERNAME.github.io/` (or your custom domain)
+2. View the HTML report at: `https://YOUR_USERNAME.github.io/YOUR_PAGES_REPO/`
 3. The report shows:
    - Summary of all test runs from the last 2 weeks
    - Expandable sections for each workflow run
@@ -191,30 +222,46 @@ After running the workflow, your GitHub Pages repository will have the following
 
 ```
 YOUR_PAGES_REPO/
-├── index.html              # Main HTML report with all runs
-└── runs/                   # Historical run data
-    ├── 2025-11-05-14-30-15.json
-    ├── 2025-11-04-10-22-33.json
-    ├── 2025-11-03-08-15-42.json
-    └── ...                 # One JSON file per workflow run
+├── index.html              # Historical HTML report with all push runs
+├── runs/                   # Historical run data (from pushes)
+│   ├── 2025-11-05-14-30-15.json
+│   ├── 2025-11-04-10-22-33.json
+│   ├── 2025-11-03-08-15-42.json
+│   └── ...                 # One JSON file per push workflow run
+└── pr-tests/              # Pull request test results
+    └── index.html          # Table-based PR results (updated per PR)
 ```
 
-Each JSON file in the `runs/` directory contains:
-- Timestamp of the run
-- GitHub workflow run number and ID
-- Array of results from all matrix environments tested in that run
+**For Push Events:**
+- Each JSON file in the `runs/` directory contains:
+  - Timestamp of the run
+  - GitHub workflow run number and ID
+  - Array of results from all matrix environments tested in that run
+
+**For Pull Request Events:**
+- The `pr-tests/index.html` file is overwritten with each PR run
+- Contains a table view of the minimal test results
+- No historical tracking for PRs (focused on speed)
 
 ## Features
 
-- **Dynamic Matrix Generation**: Customize test environments based on any logic (date, environment variables, etc.)
-- **Historical Tracking**: View results from all runs in the last 2 weeks
-- **Interactive HTML**: Collapsible sections for each run with detailed environment information
+- **Smart Test Strategy**:
+  - **Pull Requests**: Fast tests (2 environments) for quick feedback
+  - **Push to Main**: Comprehensive tests (12 environments) for full validation
+- **Dynamic Matrix Generation**: Automatically adjusts test matrix based on PR vs push context
+- **Dual Result Views**:
+  - **PR Results**: Clean table-based view for quick scanning
+  - **Historical Results**: Rich, collapsible sections with 2-week history
+- **Historical Tracking**: View results from all push runs in the last 2 weeks (auto-cleanup)
 - **Direct URLs**: Each run and environment result has a unique URL that can be copied and shared
   - Click the "🔗 Link" button on any run to copy its direct URL
   - Click the "🔗" button on any environment card to copy its direct URL
   - URLs automatically expand the relevant section when accessed
-- **GitHub Actions Integration**: Automatic summary posted to each workflow run with direct links to all results
-- **Automatic Cleanup**: Old results are automatically removed to prevent repository bloat
+- **GitHub Actions Integration**:
+  - Automatic summary posted to each workflow run
+  - Different summaries for PR vs push events
+  - Direct links to results in summary
 - **Cross-Platform Testing**: Test across Linux, Windows, and macOS with multiple Python versions
-- **Safe Publishing**: Only modifies `index.html` and `runs/` directory, preserving all other files in your GitHub Pages repository
+- **Safe Publishing**: Uses `keep_files: true` to preserve existing files in GitHub Pages repository
+- **Flexible Output**: Results available as both JSON (for processing) and HTML (for viewing)
 - **Zero Maintenance**: Once set up, the workflow handles everything automatically
