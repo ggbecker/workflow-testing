@@ -58,13 +58,13 @@ def main():
 
     # Save results as JSON (for backward compatibility and processing)
     json_file = "result.json"
-    with open(json_file, "w") as f:
+    with open(json_file, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
 
     # Generate and save HTML table row
     html_row = generate_html_row(results)
     html_file = "result.html"
-    with open(html_file, "w") as f:
+    with open(html_file, "w", encoding="utf-8") as f:
         f.write(html_row)
 
     print(f"\nResults saved to {json_file} and {html_file}")
