@@ -156,7 +156,7 @@ jobs:
         exclude_assets: '.github'
         user_name: 'github-actions[bot]'
         user_email: 'github-actions[bot]@users.noreply.github.com'
-        commit_message: ${{ github.event_name == 'pull_request' && format('Update PR #{0} test results', github.event.pull_request.number) || format('Update test results from workflow run #{0}', github.run_number) }}
+        commit_message: ${{ github.event_name == 'pull_request' && format('Update PR \#{0} test results', github.event.pull_request.number) || format('Update test results from workflow run \#{0}', github.run_number) }}
 
     - name: Comment on PR with test results
       if: github.event_name == 'pull_request'
